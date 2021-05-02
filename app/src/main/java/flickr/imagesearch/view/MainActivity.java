@@ -13,10 +13,10 @@ import java.util.Observable;
 import java.util.Observer;
 
 import flickr.imagesearch.R;
-import flickr.imagesearch.data.FlickrApiResponse;
 import flickr.imagesearch.data.utils.URLBuilder;
 import flickr.imagesearch.databinding.ActivityMainBinding;
 import flickr.imagesearch.model.Photo;
+import flickr.imagesearch.model.Photos;
 import flickr.imagesearch.view.adapter.PhotoAdapter;
 import flickr.imagesearch.viewmodel.PhotoViewModel;
 
@@ -49,7 +49,7 @@ public class MainActivity extends AppCompatActivity implements Observer
     {
         this.binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
 
-        PhotoViewModel photoViewModel = new PhotoViewModel(this, new ArrayList<Photo>(), new URLBuilder(), new FlickrApiResponse());
+        PhotoViewModel photoViewModel = new PhotoViewModel(this, new ArrayList<Photo>(), new URLBuilder(), new Photos());
 
         this.setupObserver(photoViewModel);
         this.binding.setPhotoViewModel(photoViewModel);

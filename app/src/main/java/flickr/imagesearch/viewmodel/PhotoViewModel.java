@@ -1,22 +1,28 @@
 package flickr.imagesearch.viewmodel;
 
 import android.content.Context;
-import androidx.databinding.ObservableInt;
-import android.os.AsyncTask;
 import android.util.Log;
 import android.view.View;
 import android.widget.AbsListView;
 import android.widget.Toast;
 
+import androidx.databinding.ObservableInt;
+
+import org.jetbrains.annotations.NotNull;
+
 import java.util.List;
 
-import flickr.imagesearch.data.HttpRequestTask;
+import flickr.imagesearch.data.utils.APIClient;
+import flickr.imagesearch.data.utils.APIInterface;
 import flickr.imagesearch.data.utils.URLBuilder;
-import flickr.imagesearch.data.FlickrApiResponse;
 import flickr.imagesearch.model.Photo;
+import flickr.imagesearch.model.PhotoResponse;
+import flickr.imagesearch.model.Photos;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
-public class PhotoViewModel extends java.util.Observable
-{
+public class PhotoViewModel extends java.util.Observable {
     private static final String TAG = PhotoViewModel.class.getSimpleName();
 
     private Context context;
@@ -24,7 +30,7 @@ public class PhotoViewModel extends java.util.Observable
     public ObservableInt progress;
     public ObservableInt gridview;
 
-    private FlickrApiResponse flickrApiResponse;
+    private Photos flickrApiResponse;
     private List<Photo> photoList;
 
     private URLBuilder url;
@@ -33,13 +39,13 @@ public class PhotoViewModel extends java.util.Observable
 
     /**
      * Constructor to initialize / instantiate all variable / classes
-     * @param context application context
-     * @param photoList photo list instance
-     * @param url URLBuilder instance
+     *
+     * @param context           application context
+     * @param photoList         photo list instance
+     * @param url               URLBuilder instance
      * @param flickrApiResponse FlickrApiResponse instance
      */
-    public PhotoViewModel(Context context, List<Photo> photoList, URLBuilder url, FlickrApiResponse flickrApiResponse)
-    {
+    public PhotoViewModel(Context context, List<Photo> photoList, URLBuilder url, Photos flickrApiResponse) {
         this.context = context;
 
         this.progress = new ObservableInt(View.GONE);
@@ -53,10 +59,10 @@ public class PhotoViewModel extends java.util.Observable
 
     /**
      * to get the list of photos
+     *
      * @return list of photos
      */
-    public List<Photo> getPhotoList()
-    {
+    public List<Photo> getPhotoList() {
         return this.photoList;
     }
 
@@ -64,86 +70,66 @@ public class PhotoViewModel extends java.util.Observable
     /**
      * this method manages http call
      */
-    private void fetch()
-    {
-        try
-        {
-            HttpRequestTask http = new HttpRequestTask();
+    private void fetch() {
+        setLoading();
+        progress.set(View.VISIBLE);
 
-            http.setHttpListener(new HttpRequestTask.HttpCallback()
-            {
-                @Override
-                public void onPostExecute(FlickrApiResponse response, int statusCode)
-                {
-                    Log.i(TAG, "RESPONSE CODE : " + statusCode);
+        APIInterface apiInterface = APIClient.getClient().create(APIInterface.class);
+        Call<PhotoResponse> call = apiInterface.getData(url.getQuery(), String.valueOf(url.getPage()));
+        call.enqueue(new Callback<PhotoResponse>() {
+            @Override
+            public void onResponse(@NotNull Call<PhotoResponse> call, @NotNull Response<PhotoResponse> response) {
+                Log.d("rxjava", "onResponse: " + response.code());
+                PhotoResponse resource = response.body();
 
-                    setLoaded();
-                    progress.set(View.GONE);
+                setLoaded();
+                progress.set(View.GONE);
 
-                    if(response != null)
-                    {
-                        flickrApiResponse.setPage(response.getPage());
-                        flickrApiResponse.setPages(response.getPages());
+                if (resource != null && resource.getPhotos() != null) {
+                    flickrApiResponse.setPage(resource.getPhotos().getPage());
+                    flickrApiResponse.setPages(resource.getPhotos().getPages());
 
-                        if(statusCode == 200)
-                        {
-                            photoList.addAll(response.getPhoto());
-                            setChanged();
-                            notifyObservers();
-                        }
-
-                        else
-                        {
-                            Toast.makeText(context, "Failed to Fetch", Toast.LENGTH_SHORT).show();
-                        }
+                    if (response.code() == 200) {
+                        photoList.addAll(resource.getPhotos().getPhotoList());
+                        setChanged();
+                        notifyObservers();
+                    } else {
+                        Toast.makeText(context, "Failed to Fetch", Toast.LENGTH_SHORT).show();
                     }
-
-                    else
-                    {
-                        Toast.makeText(context, "Invalid Response", Toast.LENGTH_SHORT).show();
-                    }
+                } else {
+                    Toast.makeText(context, "Invalid Response", Toast.LENGTH_SHORT).show();
                 }
+            }
 
-                @Override
-                public void onPreExecute()
-                {
-                    Log.i(TAG, "ON PRE EXECUTE");
+            @Override
+            public void onFailure(@NotNull Call<PhotoResponse> call, @NotNull Throwable t) {
+                call.cancel();
+                Log.d("rxjava", "onFailure: " + t.getMessage());
 
-                    setLoading();
-                    progress.set(View.VISIBLE);
-                }
-            });
-
-            http.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, url.toString());
-        }
-
-        catch (Exception e)
-        {
-            e.printStackTrace();
-        }
+                setLoaded();
+                progress.set(View.GONE);
+            }
+        });
     }
 
     /**
      * set false on http response
      */
-    private void setLoaded()
-    {
+    private void setLoaded() {
         this.isLoading = false;
     }
 
     /**
      * set true on http request
      */
-    private void setLoading()
-    {
+    private void setLoading() {
         this.isLoading = true;
     }
 
     /**
      * reset old record when search with new query
      */
-    private void clear()
-    {
+    private void clear() {
         flickrApiResponse.setPage(0);
         flickrApiResponse.setPages(0);
 
@@ -155,11 +141,11 @@ public class PhotoViewModel extends java.util.Observable
 
     /**
      * overridden method call when ime search button clicked
+     *
      * @param newText search box text
      * @return false
      */
-    public boolean onQueryTextSubmit(String newText)
-    {
+    public boolean onQueryTextSubmit(String newText) {
         this.clear();
         this.url.setQuery(newText);
         this.fetch();
@@ -169,30 +155,28 @@ public class PhotoViewModel extends java.util.Observable
 
     /**
      * overridden method call when ime search button clicked
+     *
      * @param newText search box text
      * @return false
      */
-    public boolean onQueryTextChange(String newText)
-    {
+    public boolean onQueryTextChange(String newText) {
         return false;
     }
 
     /**
      * Overridden method of gridview when scrolled
-     * @param view AbsListView instance
+     *
+     * @param view             AbsListView instance
      * @param firstVisibleItem first visible item
      * @param visibleItemCount number of visible item
-     * @param totalItemCount number of total item
+     * @param totalItemCount   number of total item
      */
-    public void onGridScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount)
-    {
-        if(firstVisibleItem + visibleItemCount >= totalItemCount)
-        {
+    public void onGridScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+        if (firstVisibleItem + visibleItemCount >= totalItemCount) {
             Log.i(TAG, "onScrolled -> " + visibleItemCount + "-" + totalItemCount + "-" + firstVisibleItem);
 
-            if(!isLoading && flickrApiResponse.getPage() < flickrApiResponse.getPages()-1)
-            {
-                this.url.setPage(flickrApiResponse.getPage()+1);
+            if (!isLoading && flickrApiResponse.getPage() < flickrApiResponse.getPages() - 1) {
+                this.url.setPage(flickrApiResponse.getPage() + 1);
                 this.fetch();
             }
         }
